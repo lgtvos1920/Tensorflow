@@ -1,8 +1,8 @@
 {
   "model_name": "RandomForestRegressor_FD001",
   "version": "1.3.0",
-  "timestamp": "2026-07-18 23:46:58",
-  "training_time_seconds": 2.04,
+  "timestamp": "2026-07-19 00:27:48",
+  "training_time_seconds": 1.91,
   "primary_target": "RUL_clipped (max=125)",
   "environment_versions": {
     "python": "3.14.0",
@@ -84,12 +84,20 @@
   },
   "artifact_checksums": {
     "baseline_model.joblib": {
-      "md5": "2f9cdfef5f1086ca455a700548ea247a",
-      "sha256": "a2a056851e4eea0dbb933ef214c4347875a5659d960d8cbb79e209ffffe32e05"
+      "md5": "6f9a37cbba428f06c1393bf3eea71974",
+      "sha256": "4b89cbee2c5859dc5d73714fed90b7d41a890dfda71653459e2da13bd8ebcff4"
     },
     "scaler.joblib": {
       "md5": "ef6cf4b4b912492f96571b9351d1292f",
       "sha256": "7e51717a13bd0f9e81d7ed9d8f36147882cce4088c3dfb2c5bc25738044301e1"
+    },
+    "sample_payloads.json": {
+      "md5": "f41f6068bfc79a0016aa3dde0c5509e3",
+      "sha256": "aae592a39e05e58dcf5f281e0841adac3abfa102402e63af638d05511d8adaf8"
+    },
+    "engine_examples.json": {
+      "md5": "045f0367d12415738ffd8eff10a2ffe7",
+      "sha256": "a0c1e1000c75aa68df52411bd7c0229f2f20fb8efc2a4f4081c5493e69f649ca"
     }
   },
   "dataset_checksums": {

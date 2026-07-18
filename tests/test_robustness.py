@@ -87,6 +87,32 @@ class TestPipelineRobustness(unittest.TestCase):
         self.assertTrue(0.0 <= res["upper_bound"] <= 125.0)
         self.assertTrue(res["lower_bound"] <= res["estimated_rul"] <= res["upper_bound"])
 
+    def test_empty_sequence_rejection(self):
+        """Test that empty input list raises ValueError."""
+        with self.assertRaises(ValueError) as ctx:
+            predict_rul([])
+        self.assertIn("Invalid sequence length", str(ctx.exception))
+
+    def test_upper_lower_bound_capping_limits(self):
+        """Test that extreme input feature values remain strictly bounded within [0.0, 125.0]."""
+        extreme_high_seq = [{f: 99999.0 for f in self.feature_order} for _ in range(30)]
+        res_high = predict_rul(extreme_high_seq)
+        self.assertTrue(0.0 <= res_high["estimated_rul"] <= 125.0)
+        self.assertTrue(0.0 <= res_high["lower_bound"] <= 125.0)
+        self.assertTrue(0.0 <= res_high["upper_bound"] <= 125.0)
+
+        extreme_low_seq = [{f: -99999.0 for f in self.feature_order} for _ in range(30)]
+        res_low = predict_rul(extreme_low_seq)
+        self.assertTrue(0.0 <= res_low["estimated_rul"] <= 125.0)
+        self.assertTrue(0.0 <= res_low["lower_bound"] <= 125.0)
+        self.assertTrue(0.0 <= res_low["upper_bound"] <= 125.0)
+
+    def test_sample_payloads_file_checksum_integrity(self):
+        """Test that sample_payloads.json file exists and is readable."""
+        payloads_file = os.path.join(self.predictor.model_dir, "sample_payloads.json")
+        self.assertTrue(os.path.exists(payloads_file))
+        self.assertGreater(os.path.getsize(payloads_file), 1000)
+
 
 if __name__ == "__main__":
     unittest.main()

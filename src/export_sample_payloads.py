@@ -23,11 +23,11 @@ def export_member_b_payloads():
     train_df, _, _, _, _, useful_feats = get_validated_dataset()
     _, val_df, _, _ = prepare_engine_splits(train_df, useful_feats)
     
-    # Engine 54 (Successful) and Engine 74 (Difficult)
+    # Engine 54 (Successful Case) and Engine 74 (Difficult Case)
     e54 = val_df[val_df["unit_nr"] == 54].sort_values("cycle")
     e74 = val_df[val_df["unit_nr"] == 74].sort_values("cycle")
     
-    # Strictly 30-cycle sequence payload (last 30 cycles)
+    # Strictly 30-cycle sequence payloads (last 30 cycles)
     payload_54_sequence_30 = e54[useful_feats].tail(30).to_dict(orient="records")
     payload_74_sequence_30 = e74[useful_feats].tail(30).to_dict(orient="records")
     
@@ -59,6 +59,8 @@ def export_member_b_payloads():
         json.dump(sample_payloads, f, indent=2)
         
     print(f"Sample 30-cycle payloads successfully exported to {out_path}")
+    print(f"Engine 54 Predicted RUL: {pred_54['estimated_rul']} (Deterministic Expected: 1.82)")
+    print(f"Engine 74 Predicted RUL: {pred_74['estimated_rul']} (Deterministic Expected: 3.39)")
     return sample_payloads
 
 

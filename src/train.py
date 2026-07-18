@@ -166,6 +166,8 @@ def run_pipeline():
     feat_order_path = os.path.join(MODEL_DIR, "feature_order.json")
     feat_imp_path = os.path.join(MODEL_DIR, "feature_importance.json")
     metadata_path = os.path.join(MODEL_DIR, "metadata.json")
+    payloads_path = os.path.join(MODEL_DIR, "sample_payloads.json")
+    examples_path = os.path.join(MODEL_DIR, "engine_examples.json")
     
     joblib.dump(rf_model, model_path)
     joblib.dump(scaler, scaler_path)
@@ -176,10 +178,12 @@ def run_pipeline():
     with open(feat_imp_path, "w") as f:
         json.dump(feat_importance, f, indent=2)
         
-    # Checksums for exported binary model artifacts
+    # Checksums for exported binary model artifacts & payload files
     artifact_checksums = {
         "baseline_model.joblib": compute_checksums(model_path),
-        "scaler.joblib": compute_checksums(scaler_path)
+        "scaler.joblib": compute_checksums(scaler_path),
+        "sample_payloads.json": compute_checksums(payloads_path) if os.path.exists(payloads_path) else None,
+        "engine_examples.json": compute_checksums(examples_path) if os.path.exists(examples_path) else None
     }
     
     env_versions = {
