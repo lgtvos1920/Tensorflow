@@ -8,7 +8,7 @@ This document walks through the final integration steps completed on the `releas
 
 Here is a screenshot demonstrating the functioning layout of the AeroShield predictive maintenance control panel:
 
-![AeroShield Dashboard](assets/dashboard.png)
+![AeroShield Dashboard](docs/assets/dashboard.png)
 
 ---
 
