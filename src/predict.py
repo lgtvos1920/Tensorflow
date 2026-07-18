@@ -5,9 +5,12 @@ Author: Member A (Data & ML Lead)
 
 import json
 import os
+import warnings
 import joblib
 import numpy as np
 import pandas as pd
+
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 try:
     from src.data_loader import REPO_ROOT
@@ -15,9 +18,19 @@ except ImportError:
     from data_loader import REPO_ROOT
 
 MODEL_DIR = os.path.join(REPO_ROOT, "models")
+REQUIRED_WINDOW_LENGTH = 30
+MAX_RUL_CAP = 125.0
+
+AUTHORITATIVE_Q05 = -15.01
+AUTHORITATIVE_Q95 = 24.08
 
 
 class RULPredictor:
+    """
+    Production Predictor for C-MAPSS FD001 Engine RUL Estimation.
+    Standardized API Contract: Accepts strictly a 30-cycle sequence shaped (30, 16).
+    """
+
     def __init__(self, model_dir: str = MODEL_DIR):
         self.model_dir = model_dir
         self.model = joblib.load(os.path.join(model_dir, "baseline_model.joblib"))
@@ -29,93 +42,100 @@ class RULPredictor:
         with open(os.path.join(model_dir, "metadata.json"), "r") as f:
             self.metadata = json.load(f)
             
-        self.intervals = self.metadata.get("empirical_prediction_intervals", {
-            "lower_quantile_5": -15.0,
-            "upper_quantile_95": 15.0
-        })
-
-    def assess_data_quality(self, df: pd.DataFrame) -> float:
-        """Calculate data quality score based on feature completeness and null values."""
-        missing_feats = [f for f in self.feature_order if f not in df.columns]
-        if missing_feats:
-            present_ratio = (len(self.feature_order) - len(missing_feats)) / len(self.feature_order)
-            return round(present_ratio, 2)
-            
-        # Check non-null values
-        null_count = df[self.feature_order].isnull().sum().sum()
-        total_cells = len(df) * len(self.feature_order)
-        if total_cells == 0:
-            return 0.0
-        return round(float(1.0 - (null_count / total_cells)), 4)
+        quantiles = self.metadata.get("performance_metrics", {}).get("empirical_quantiles", {})
+        self.q05 = float(quantiles.get("lower_quantile_5", AUTHORITATIVE_Q05))
+        self.q95 = float(quantiles.get("upper_quantile_95", AUTHORITATIVE_Q95))
 
     def determine_risk_and_recommendation(self, estimated_rul: float) -> tuple:
-        """Determine risk level classification and actionable maintenance recommendation."""
+        """
+        Determine risk level classification and actionable maintenance recommendation.
+        Uses neutral prototype wording rather than safety-certifying language.
+        """
         if estimated_rul <= 15.0:
             risk = "CRITICAL"
-            rec = "IMMEDIATE ACTION REQUIRED: Engine approaching end-of-life. Schedule immediate engine swap / overhaul."
+            rec = "CRITICAL ALERT: RUL <= 15 cycles. Require immediate qualified engineering inspection and detailed diagnostic checks before further flight operation."
         elif estimated_rul <= 30.0:
             risk = "HIGH"
-            rec = "HIGH PRIORITY: Operational lifetime under 30 cycles. Plan maintenance within the next 5 flight cycles."
+            rec = "HIGH PRIORITY: RUL <= 30 cycles. Require qualified engineering inspection during next scheduled service window."
         elif estimated_rul <= 60.0:
             risk = "MEDIUM"
-            rec = "ELEVATED MONITORING: Engine wear progressing. Conduct detailed sensor inspection during next depot visit."
+            rec = "ELEVATED MONITORING: RUL <= 60 cycles. Routine inspection recommended within validated dataset range."
         else:
             risk = "LOW"
-            rec = "NORMAL OPERATION: Engine operating within nominal degradation bounds. Routine monitoring active."
+            rec = "NOMINAL: Nominal behavior detected within the model's validated dataset range."
         return risk, rec
+
+    def _convert_input_to_df(self, input_data) -> pd.DataFrame:
+        """Convert input data structure into validated DataFrame."""
+        if isinstance(input_data, list):
+            df = pd.DataFrame(input_data)
+        elif isinstance(input_data, pd.DataFrame):
+            df = input_data.copy()
+        elif isinstance(input_data, np.ndarray):
+            if input_data.ndim == 2 and input_data.shape[1] == len(self.feature_order):
+                df = pd.DataFrame(input_data, columns=self.feature_order)
+            else:
+                raise ValueError(f"Array shape {input_data.shape} invalid. Expected (30, {len(self.feature_order)}).")
+        else:
+            raise TypeError("API contract requires a 30-cycle sequence (list of dicts, numpy array (30, 16), or DataFrame with 30 rows). Single snapshots are not supported.")
+            
+        return df
 
     def predict_rul(self, input_data) -> dict:
         """
-        Unified prediction interface for downstream services (Members B & C).
-        Accepts DataFrame, Series, or dictionary containing sensor readings.
+        Production prediction interface.
+        Strict API Contract: Input MUST be a 30-cycle sequence shaped (30, 16).
         """
-        if isinstance(input_data, dict):
-            df = pd.DataFrame([input_data])
-        elif isinstance(input_data, pd.Series):
-            df = pd.DataFrame([input_data])
-        elif isinstance(input_data, pd.DataFrame):
-            df = input_data.copy()
-        else:
-            raise TypeError("input_data must be a pandas DataFrame, Series, or dict")
-
-        quality_score = self.assess_data_quality(df)
+        df = self._convert_input_to_df(input_data)
         
-        # Fill missing required feature columns with 0 if any missing to avoid crash
-        for f in self.feature_order:
-            if f not in df.columns:
-                df[f] = 0.0
-
-        # Extract features in exact training order
-        X_raw = df[self.feature_order].values
+        # 1. Validate Window Length (strictly 30 cycles)
+        if len(df) != REQUIRED_WINDOW_LENGTH:
+            raise ValueError(f"Invalid sequence length {len(df)}. Production API contract requires strictly {REQUIRED_WINDOW_LENGTH} cycles.")
+            
+        # 2. Check for missing required features
+        missing_fields = [f for f in self.feature_order if f not in df.columns]
+        if missing_fields:
+            raise ValueError(f"Missing required feature fields: {missing_fields}")
+            
+        # 3. Strip extra fields safely (Security & Hygiene) and reorder
+        df_clean = df[self.feature_order]
         
-        # Scale features
-        X_scaled = self.scaler.transform(X_raw)
+        # 4. Check for non-finite values (NaN / Inf)
+        if df_clean.isnull().values.any() or not np.isfinite(df_clean.values).all():
+            raise ValueError("Input sequence contains non-finite values (NaN or Inf). Inspection rejected.")
+            
+        data_quality_score = 1.0
         
-        # Point prediction (last row if multiple cycles passed)
-        pred_rul_array = self.model.predict(X_raw)
-        latest_pred = float(pred_rul_array[-1])
+        # 5. Extract final cycle snapshot (Cycle 30) for Random Forest baseline prediction
+        final_cycle_snapshot = df_clean.iloc[[-1]]
         
-        # Calculate empirical prediction bounds
-        lower_b = max(0.0, float(latest_pred + self.intervals.get("lower_quantile_5", -15.0)))
-        upper_b = float(latest_pred + self.intervals.get("upper_quantile_95", 15.0))
+        # 6. Model Prediction
+        raw_pred = float(self.model.predict(final_cycle_snapshot.values)[0])
         
-        risk_level, recommendation = self.determine_risk_and_recommendation(latest_pred)
+        # 7. Cap Displayed RUL and Bounds to documented target range [0.0, 125.0] using authoritative offsets [-15.01, +24.08]
+        estimated_rul = max(0.0, min(MAX_RUL_CAP, raw_pred))
+        lower_bound = max(0.0, min(MAX_RUL_CAP, raw_pred + self.q05))
+        upper_bound = max(0.0, min(MAX_RUL_CAP, raw_pred + self.q95))
+        
+        risk_level, recommendation = self.determine_risk_and_recommendation(estimated_rul)
         
         return {
             "model_name": self.metadata.get("model_name", "RandomForestRegressor_FD001"),
-            "version": self.metadata.get("version", "1.0.0"),
+            "version": self.metadata.get("version", "1.3.0"),
             "feature_order": self.feature_order,
-            "window_length": self.metadata.get("window_length", 30),
-            "estimated_rul": round(latest_pred, 2),
-            "lower_bound": round(lower_b, 2),
-            "upper_bound": round(upper_b, 2),
+            "window_length": REQUIRED_WINDOW_LENGTH,
+            "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single prediction by extracting the final cycle snapshot (cycle 30) from the input window.",
+            "model_limitation": "Random Forest baseline evaluates ONLY the final cycle of the 30-cycle window, discarding preceding temporal progression.",
+            "estimated_rul": round(estimated_rul, 2),
+            "lower_bound": round(lower_bound, 2),
+            "upper_bound": round(upper_bound, 2),
             "risk_level": risk_level,
-            "data_quality_score": quality_score,
+            "data_quality_score": data_quality_score,
             "recommendation": recommendation
         }
 
 
-# Global instance & exportable function
+# Global predictor instance
 _predictor_instance = None
 
 def predict_rul(input_data) -> dict:
@@ -128,7 +148,7 @@ def predict_rul(input_data) -> dict:
 
 if __name__ == "__main__":
     predictor = RULPredictor()
-    sample_input = {f: 0.5 for f in predictor.feature_order}
-    res = predictor.predict_rul(sample_input)
-    print("Sample Predict RUL Output:")
+    sample_seq = [{f: 0.5 for f in predictor.feature_order} for _ in range(30)]
+    res = predictor.predict_rul(sample_seq)
+    print("Sample 30-Cycle Predict RUL Output:")
     print(json.dumps(res, indent=2))
