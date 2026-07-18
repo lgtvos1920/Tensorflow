@@ -1,6 +1,6 @@
 # Walkthrough - Final Refined Model Integration & Security Audit
 
-This document walks through the final integration steps completed on the `main` branch, including merging the integration branch, resolving warnings, executing the 19 combined tests, verifying clean clone execution, and stopping background servers.
+This document walks through the final integration steps completed on the `release-candidate-v2` branch, including merging the integration branch, resolving warnings, executing the 19 combined tests, verifying clean clone execution, and stopping background servers.
 
 ---
 
