@@ -1,14 +1,14 @@
 # Walkthrough - Final Refined Model Integration & Security Audit
 
-This document walks through the final integration steps completed on the `main` branch, including merging the integration branch, resolving warnings, executing the 19 combined tests, verifying clean clone execution, and documenting running background servers.
+This document walks through the final integration steps completed on the `release-candidate-v2` branch, including merging the integration branch, resolving warnings, executing the 19 combined tests, verifying clean clone execution, and stopping background servers.
 
 ---
 
 ## 📺 Interface Preview (AeroShield Dashboard)
 
-Here is a visual mockup demonstrating the final dark-mode layout of the AeroShield predictive maintenance control panel:
+Here is a screenshot demonstrating the functioning layout of the AeroShield predictive maintenance control panel:
 
-![Dashboard UI Mockup](assets/dashboard.png)
+![AeroShield Dashboard](assets/dashboard.png)
 
 ---
 
@@ -60,19 +60,19 @@ tests\test_api.py .......                                                [ 36%]
 tests\test_api_contract.py ........                                      [ 78%]
 tests\test_robustness.py ....                                            [100%]
 
-============================= 19 passed in 3.41s = 3.32s ======================
+============================= 19 passed in 4.60s ==============================
 ```
 
 ### 2. Clean Clone Verification
 We ran the clean clone script `src/test_clean_clone.py`. It successfully cloned the repository into an isolated temporary folder and executed predictions warning-free:
 ```bash
-1. Cloning repository into isolated environment: C:\Users\RDP\AppData\Local\Temp\1\tmp4ww802gr\repo
+1. Cloning repository into isolated environment: C:\Users\RDP\AppData\Local\Temp\1\tmpqt2p3_6t\repo
 2. Executing predict_rul() inside clean clone...
 Stdout:
  SUCCESS_CLEAN_CLONE
 {
   "model_name": "RandomForestRegressor_FD001",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "feature_order": [
     "op_setting_1",
     "op_setting_2",
@@ -99,7 +99,7 @@ Stdout:
   "upper_bound": 125.0,
   "risk_level": "LOW",
   "data_quality_score": 1.0,
-  "recommendation": "NOMINAL: Operating within safety bounds."
+  "recommendation": "NOMINAL: Nominal behavior detected within the model's validated dataset range."
 }
 Clean clone verification passed 100%!
 ```
@@ -108,6 +108,4 @@ Clean clone verification passed 100%!
 
 ## 🏃 Active Background Services
 
-Both backend and frontend services are currently running in the background for local validation:
-- **FastAPI Gateway**: Running on `http://127.0.0.1:8000` (OpenAPI docs at `/docs`)
-- **Streamlit Dashboard**: Running on `http://localhost:8501`
+All background validation services have been successfully stopped after manual testing and validation, to ensure no running background tasks remain active post-deployment.
