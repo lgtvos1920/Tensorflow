@@ -1,5 +1,5 @@
-# C-MAPSS FD001 Environment Dependencies
-numpy>=2.0.0
-pandas>=2.0.0
-scikit-learn>=1.8.0
-joblib>=1.4.0
+# C-MAPSS FD001 Exact Tested Dependencies for Release Artifact Compatibility
+numpy==2.3.5
+pandas==2.3.3
+scikit-learn==1.8.0
+joblib==1.5.3
