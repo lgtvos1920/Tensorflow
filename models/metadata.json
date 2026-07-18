@@ -1,0 +1,141 @@
+{
+  "model_name": "RandomForestRegressor_FD001",
+  "version": "1.0.0",
+  "timestamp": "2026-07-18 23:00:48",
+  "training_time_seconds": 1.95,
+  "primary_target": "RUL_clipped (max=125)",
+  "feature_count": 16,
+  "feature_order": [
+    "op_setting_1",
+    "op_setting_2",
+    "sensor_2",
+    "sensor_3",
+    "sensor_4",
+    "sensor_7",
+    "sensor_8",
+    "sensor_9",
+    "sensor_11",
+    "sensor_12",
+    "sensor_13",
+    "sensor_14",
+    "sensor_15",
+    "sensor_17",
+    "sensor_20",
+    "sensor_21"
+  ],
+  "scaled_feature_order": [
+    "op_setting_1_scaled",
+    "op_setting_2_scaled",
+    "sensor_2_scaled",
+    "sensor_3_scaled",
+    "sensor_4_scaled",
+    "sensor_7_scaled",
+    "sensor_8_scaled",
+    "sensor_9_scaled",
+    "sensor_11_scaled",
+    "sensor_12_scaled",
+    "sensor_13_scaled",
+    "sensor_14_scaled",
+    "sensor_15_scaled",
+    "sensor_17_scaled",
+    "sensor_20_scaled",
+    "sensor_21_scaled"
+  ],
+  "validation_metrics": {
+    "mae": 12.3476,
+    "rmse": 17.0591
+  },
+  "empirical_prediction_intervals": {
+    "lower_quantile_5": -34.27619517169601,
+    "upper_quantile_95": 24.07908093948684,
+    "mean_residual": -0.012058438556399582,
+    "std_residual": 17.059050205172788
+  },
+  "tf_sequence_model_metrics": null,
+  "checksums": {
+    "train_FD001.txt": {
+      "md5": "259f340bac32ce6fa8894815600fa757",
+      "sha256": "963b5e22825b34d8b21c69e1aeb4af3e647050eb672ee8834ba4b5d91d2de0f8",
+      "size_bytes": 3515356
+    },
+    "test_FD001.txt": {
+      "md5": "62316d1dd70f88a9a43a1e2690765437",
+      "sha256": "3cda7109ce17bafb5443f2ac926cfcf88154b941b8c4cf95eb55d1ddd6f52851",
+      "size_bytes": 2228855
+    },
+    "RUL_FD001.txt": {
+      "md5": "8f4a8b3d2692b2f7d8e72b344927bf4b",
+      "sha256": "a19c8ec94931949d0485bdc35118206e9c81c4547b422efb9cf86f4ceddbceca",
+      "size_bytes": 429
+    }
+  },
+  "sensor_metadata": {
+    "constant_sensors": [
+      "sensor_1",
+      "sensor_5",
+      "sensor_6",
+      "sensor_10",
+      "sensor_16",
+      "sensor_18",
+      "sensor_19"
+    ],
+    "useful_sensors": [
+      "sensor_2",
+      "sensor_3",
+      "sensor_4",
+      "sensor_7",
+      "sensor_8",
+      "sensor_9",
+      "sensor_11",
+      "sensor_12",
+      "sensor_13",
+      "sensor_14",
+      "sensor_15",
+      "sensor_17",
+      "sensor_20",
+      "sensor_21"
+    ],
+    "useful_features": [
+      "op_setting_1",
+      "op_setting_2",
+      "sensor_2",
+      "sensor_3",
+      "sensor_4",
+      "sensor_7",
+      "sensor_8",
+      "sensor_9",
+      "sensor_11",
+      "sensor_12",
+      "sensor_13",
+      "sensor_14",
+      "sensor_15",
+      "sensor_17",
+      "sensor_20",
+      "sensor_21"
+    ],
+    "sensor_stds": {
+      "sensor_1": 0.0,
+      "sensor_2": 0.5000532700606232,
+      "sensor_3": 6.131149519690819,
+      "sensor_4": 9.000604780543714,
+      "sensor_5": 5.329199674912836e-15,
+      "sensor_6": 0.0013889849127073114,
+      "sensor_7": 0.8850922576634073,
+      "sensor_8": 0.07098547889092417,
+      "sensor_9": 22.082879525066232,
+      "sensor_10": 0.0,
+      "sensor_11": 0.2670873986396848,
+      "sensor_12": 0.7375533922097114,
+      "sensor_13": 0.07191891569857814,
+      "sensor_14": 19.076175975953106,
+      "sensor_15": 0.03750503795196652,
+      "sensor_16": 3.469531038354711e-18,
+      "sensor_17": 1.548763024614299,
+      "sensor_18": 0.0,
+      "sensor_19": 0.0,
+      "sensor_20": 0.18074642787366083,
+      "sensor_21": 0.10825087474491234
+    }
+  },
+  "window_length": 30
+}
