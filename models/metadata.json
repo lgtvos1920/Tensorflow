@@ -1,9 +1,16 @@
 {
   "model_name": "RandomForestRegressor_FD001",
-  "version": "1.0.0",
-  "timestamp": "2026-07-18 23:00:48",
-  "training_time_seconds": 1.95,
+  "version": "1.3.0",
+  "timestamp": "2026-07-18 23:46:58",
+  "training_time_seconds": 2.04,
   "primary_target": "RUL_clipped (max=125)",
+  "environment_versions": {
+    "python": "3.14.0",
+    "numpy": "2.3.5",
+    "pandas": "2.3.3",
+    "joblib": "1.5.3",
+    "scikit_learn": "1.8.0"
+  },
   "feature_count": 16,
   "feature_order": [
     "op_setting_1",
@@ -41,18 +48,51 @@
     "sensor_20_scaled",
     "sensor_21_scaled"
   ],
-  "validation_metrics": {
-    "mae": 12.3476,
-    "rmse": 17.0591
+  "window_length": 30,
+  "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single RUL prediction by extracting the final cycle (cycle 30 snapshot) from the rolling window.",
+  "model_limitations": [
+    "Baseline Random Forest evaluates ONLY the final cycle (cycle 30) of the 30-cycle window, discarding preceding temporal progression within the window.",
+    "Predictions are bounded to [0.0, 125.0] cycles based on piecewise constant RUL target clipping.",
+    "Operational conditions assume single sea-level flight regime (FD001 configuration)."
+  ],
+  "performance_metrics": {
+    "overall_mae": 12.3476,
+    "overall_rmse": 17.0591,
+    "near_failure_mae": 6.0716,
+    "empirical_quantiles": {
+      "lower_quantile_5": -15.01,
+      "upper_quantile_95": 24.08
+    },
+    "empirical_interval_coverage_pct": 89.98,
+    "segmented_metrics": {
+      "near_failure_le_30": {
+        "count": 620,
+        "mae": 6.0716,
+        "rmse": 9.0755
+      },
+      "mid_life_30_to_75": {
+        "count": 900,
+        "mae": 18.311,
+        "rmse": 24.1355
+      },
+      "early_life_gt_75": {
+        "count": 2550,
+        "mae": 11.7688,
+        "rmse": 15.4549
+      }
+    }
   },
-  "empirical_prediction_intervals": {
-    "lower_quantile_5": -34.27619517169601,
-    "upper_quantile_95": 24.07908093948684,
-    "mean_residual": -0.012058438556399582,
-    "std_residual": 17.059050205172788
+  "artifact_checksums": {
+    "baseline_model.joblib": {
+      "md5": "2f9cdfef5f1086ca455a700548ea247a",
+      "sha256": "a2a056851e4eea0dbb933ef214c4347875a5659d960d8cbb79e209ffffe32e05"
+    },
+    "scaler.joblib": {
+      "md5": "ef6cf4b4b912492f96571b9351d1292f",
+      "sha256": "7e51717a13bd0f9e81d7ed9d8f36147882cce4088c3dfb2c5bc25738044301e1"
+    }
   },
-  "tf_sequence_model_metrics": null,
-  "checksums": {
+  "dataset_checksums": {
     "train_FD001.txt": {
       "md5": "259f340bac32ce6fa8894815600fa757",
       "sha256": "963b5e22825b34d8b21c69e1aeb4af3e647050eb672ee8834ba4b5d91d2de0f8",
@@ -136,6 +176,5 @@
       "sensor_20": 0.18074642787366083,
       "sensor_21": 0.10825087474491234
     }
-  },
-  "window_length": 30
+  }
 }
