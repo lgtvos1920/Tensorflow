@@ -5,9 +5,12 @@ Author: Member A (Data & ML Lead)
 
 import json
 import os
+import warnings
 import joblib
 import numpy as np
 import pandas as pd
+
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
 
 try:
     from src.data_loader import REPO_ROOT
@@ -67,16 +70,18 @@ class RULPredictor:
     def predict_rul(self, input_data) -> dict:
         """
         Unified prediction interface for downstream services (Members B & C).
-        Accepts DataFrame, Series, or dictionary containing sensor readings.
+        Accepts dict, list of dicts (sequence), Series, or DataFrame.
         """
         if isinstance(input_data, dict):
             df = pd.DataFrame([input_data])
+        elif isinstance(input_data, list):
+            df = pd.DataFrame(input_data)
         elif isinstance(input_data, pd.Series):
             df = pd.DataFrame([input_data])
         elif isinstance(input_data, pd.DataFrame):
             df = input_data.copy()
         else:
-            raise TypeError("input_data must be a pandas DataFrame, Series, or dict")
+            raise TypeError("input_data must be a pandas DataFrame, Series, dict, or list of dicts")
 
         quality_score = self.assess_data_quality(df)
         
@@ -85,14 +90,14 @@ class RULPredictor:
             if f not in df.columns:
                 df[f] = 0.0
 
-        # Extract features in exact training order
-        X_raw = df[self.feature_order].values
+        # Extract features in exact training order as DataFrame with column names
+        X_df = df[self.feature_order]
         
         # Scale features
-        X_scaled = self.scaler.transform(X_raw)
+        X_scaled = self.scaler.transform(X_df)
         
-        # Point prediction (last row if multiple cycles passed)
-        pred_rul_array = self.model.predict(X_raw)
+        # Point prediction (last row if sequence passed)
+        pred_rul_array = self.model.predict(X_df.values)
         latest_pred = float(pred_rul_array[-1])
         
         # Calculate empirical prediction bounds
