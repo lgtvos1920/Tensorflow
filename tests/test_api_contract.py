@@ -25,6 +25,9 @@ class TestRULPredictorAPIContract(unittest.TestCase):
             {f: 0.5 for f in cls.valid_feature_order}
             for _ in range(30)
         ]
+        payloads_path = os.path.join(cls.predictor.model_dir, "sample_payloads.json")
+        with open(payloads_path, "r") as f:
+            cls.sample_payloads = json.load(f)
 
     def test_valid_sequence_prediction(self):
         """Test prediction with valid (30, 16) sequence."""
@@ -49,13 +52,11 @@ class TestRULPredictorAPIContract(unittest.TestCase):
 
     def test_window_length_validation(self):
         """Test that non-30 window lengths raise ValueError."""
-        # 10 cycles sequence
         short_seq = [{f: 0.5 for f in self.valid_feature_order} for _ in range(10)]
         with self.assertRaises(ValueError) as ctx:
             predict_rul(short_seq)
         self.assertIn("Invalid sequence length", str(ctx.exception))
 
-        # 35 cycles sequence
         long_seq = [{f: 0.5 for f in self.valid_feature_order} for _ in range(35)]
         with self.assertRaises(ValueError) as ctx:
             predict_rul(long_seq)
@@ -73,7 +74,7 @@ class TestRULPredictorAPIContract(unittest.TestCase):
         incomplete_seq = []
         for _ in range(30):
             item = {f: 0.5 for f in self.valid_feature_order}
-            del item["sensor_2"]  # Remove required feature
+            del item["sensor_2"]
             incomplete_seq.append(item)
 
         with self.assertRaises(ValueError) as ctx:
@@ -117,6 +118,42 @@ class TestRULPredictorAPIContract(unittest.TestCase):
         self.assertEqual(res1["lower_bound"], res2["lower_bound"])
         self.assertEqual(res1["upper_bound"], res2["upper_bound"])
         self.assertEqual(res1["risk_level"], res2["risk_level"])
+
+    def test_exact_engine_54_deterministic_prediction(self):
+        """Test exact deterministic prediction output for frozen Engine 54 payload."""
+        seq_54 = self.sample_payloads["engine_54_successful"]["sequence_30_cycle_payload"]
+        res = predict_rul(seq_54)
+        self.assertEqual(res["estimated_rul"], 1.82)
+        self.assertEqual(res["lower_bound"], 0.0)
+        self.assertEqual(res["upper_bound"], 25.90)
+        self.assertEqual(res["risk_level"], "CRITICAL")
+
+    def test_exact_engine_74_deterministic_prediction(self):
+        """Test exact deterministic prediction output for frozen Engine 74 payload."""
+        seq_74 = self.sample_payloads["engine_74_difficult"]["sequence_30_cycle_payload"]
+        res = predict_rul(seq_74)
+        self.assertEqual(res["estimated_rul"], 3.39)
+        self.assertEqual(res["lower_bound"], 0.0)
+        self.assertEqual(res["upper_bound"], 27.47)
+        self.assertEqual(res["risk_level"], "CRITICAL")
+
+    def test_payload_schema_keys(self):
+        """Test presence of all required response payload keys."""
+        res = predict_rul(self.valid_30_seq)
+        expected_keys = [
+            "model_name", "version", "feature_order", "window_length",
+            "sequence_conversion_strategy", "model_limitation", "estimated_rul",
+            "lower_bound", "upper_bound", "risk_level", "data_quality_score", "recommendation"
+        ]
+        for k in expected_keys:
+            self.assertIn(k, res)
+
+    def test_risk_level_thresholds(self):
+        """Test risk level thresholds: CRITICAL <= 15, HIGH <= 30, MEDIUM <= 60, LOW > 60."""
+        self.assertEqual(self.predictor.determine_risk_and_recommendation(10.0)[0], "CRITICAL")
+        self.assertEqual(self.predictor.determine_risk_and_recommendation(25.0)[0], "HIGH")
+        self.assertEqual(self.predictor.determine_risk_and_recommendation(45.0)[0], "MEDIUM")
+        self.assertEqual(self.predictor.determine_risk_and_recommendation(80.0)[0], "LOW")
 
 
 if __name__ == "__main__":
