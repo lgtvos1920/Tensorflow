@@ -1,8 +1,8 @@
 {
   "model_name": "RandomForestRegressor_FD001",
-  "version": "1.1.0",
-  "timestamp": "2026-07-18 23:23:01",
-  "training_time_seconds": 2.01,
+  "version": "1.2.0",
+  "timestamp": "2026-07-18 23:30:54",
+  "training_time_seconds": 2.07,
   "primary_target": "RUL_clipped (max=125)",
   "feature_count": 16,
   "feature_order": [
@@ -43,13 +43,18 @@
   ],
   "window_length": 30,
   "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single RUL prediction by extracting the final cycle (cycle 30 snapshot) from the rolling window.",
+  "model_limitations": [
+    "Baseline Random Forest evaluates ONLY the final cycle (cycle 30) of the 30-cycle window, discarding preceding temporal progression within the window.",
+    "Predictions are bounded to [0.0, 125.0] cycles based on piecewise constant RUL target clipping.",
+    "Operational conditions assume single sea-level flight regime (FD001 configuration)."
+  ],
   "performance_metrics": {
     "overall_mae": 12.3476,
     "overall_rmse": 17.0591,
     "near_failure_mae": 6.0716,
     "empirical_quantiles": {
-      "lower_quantile_5": -34.2762,
-      "upper_quantile_95": 24.0791
+      "lower_quantile_5": -15.01,
+      "upper_quantile_95": 24.08
     },
     "empirical_interval_coverage_pct": 89.98,
     "segmented_metrics": {

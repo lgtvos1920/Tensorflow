@@ -548,7 +548,7 @@
     ],
     "expected_predict_rul_response": {
       "model_name": "RandomForestRegressor_FD001",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "feature_order": [
         "op_setting_1",
         "op_setting_2",
@@ -569,6 +569,7 @@
       ],
       "window_length": 30,
       "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single prediction by extracting the final cycle snapshot (cycle 30) from the input window.",
+      "model_limitation": "Random Forest baseline evaluates ONLY the final cycle of the 30-cycle window, discarding preceding temporal progression.",
       "estimated_rul": 1.82,
       "lower_bound": 0.0,
       "upper_bound": 25.9,
@@ -1126,7 +1127,7 @@
     ],
     "expected_predict_rul_response": {
       "model_name": "RandomForestRegressor_FD001",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "feature_order": [
         "op_setting_1",
         "op_setting_2",
@@ -1147,6 +1148,7 @@
       ],
       "window_length": 30,
       "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single prediction by extracting the final cycle snapshot (cycle 30) from the input window.",
+      "model_limitation": "Random Forest baseline evaluates ONLY the final cycle of the 30-cycle window, discarding preceding temporal progression.",
       "estimated_rul": 3.39,
       "lower_bound": 0.0,
       "upper_bound": 27.47,

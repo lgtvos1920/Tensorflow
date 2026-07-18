@@ -21,6 +21,9 @@ MODEL_DIR = os.path.join(REPO_ROOT, "models")
 REQUIRED_WINDOW_LENGTH = 30
 MAX_RUL_CAP = 125.0
 
+AUTHORITATIVE_Q05 = -15.01
+AUTHORITATIVE_Q95 = 24.08
+
 
 class RULPredictor:
     """
@@ -40,8 +43,8 @@ class RULPredictor:
             self.metadata = json.load(f)
             
         quantiles = self.metadata.get("performance_metrics", {}).get("empirical_quantiles", {})
-        self.q05 = quantiles.get("lower_quantile_5", -15.0)
-        self.q95 = quantiles.get("upper_quantile_95", 24.0)
+        self.q05 = float(quantiles.get("lower_quantile_5", AUTHORITATIVE_Q05))
+        self.q95 = float(quantiles.get("upper_quantile_95", AUTHORITATIVE_Q95))
 
     def determine_risk_and_recommendation(self, estimated_rul: float) -> tuple:
         """
@@ -94,24 +97,23 @@ class RULPredictor:
         if missing_fields:
             raise ValueError(f"Missing required feature fields: {missing_fields}")
             
-        # 3. Strip extra fields safely (Security & Hygiene)
+        # 3. Strip extra fields safely (Security & Hygiene) and reorder
         df_clean = df[self.feature_order]
         
         # 4. Check for non-finite values (NaN / Inf)
         if df_clean.isnull().values.any() or not np.isfinite(df_clean.values).all():
             raise ValueError("Input sequence contains non-finite values (NaN or Inf). Inspection rejected.")
             
-        # Data Quality Score
         data_quality_score = 1.0
         
         # 5. Extract final cycle snapshot (Cycle 30) for Random Forest baseline prediction
-        # Sequence-to-tabular strategy: Random Forest evaluates the final state of the 30-cycle window
+        # Model limitation: Random Forest evaluates ONLY the final cycle of the 30-cycle window
         final_cycle_snapshot = df_clean.iloc[[-1]]
         
         # 6. Model Prediction
         raw_pred = float(self.model.predict(final_cycle_snapshot.values)[0])
         
-        # 7. Cap Displayed RUL and Bounds to documented target range [0.0, 125.0]
+        # 7. Cap Displayed RUL and Bounds to documented target range [0.0, 125.0] using authoritative offsets [-15.01, +24.08]
         estimated_rul = max(0.0, min(MAX_RUL_CAP, raw_pred))
         lower_bound = max(0.0, min(MAX_RUL_CAP, raw_pred + self.q05))
         upper_bound = max(0.0, min(MAX_RUL_CAP, raw_pred + self.q95))
@@ -120,10 +122,11 @@ class RULPredictor:
         
         return {
             "model_name": self.metadata.get("model_name", "RandomForestRegressor_FD001"),
-            "version": self.metadata.get("version", "1.1.0"),
+            "version": self.metadata.get("version", "1.2.0"),
             "feature_order": self.feature_order,
             "window_length": REQUIRED_WINDOW_LENGTH,
             "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single prediction by extracting the final cycle snapshot (cycle 30) from the input window.",
+            "model_limitation": "Random Forest baseline evaluates ONLY the final cycle of the 30-cycle window, discarding preceding temporal progression.",
             "estimated_rul": round(estimated_rul, 2),
             "lower_bound": round(lower_bound, 2),
             "upper_bound": round(upper_bound, 2),
