@@ -3,20 +3,23 @@ C-MAPSS FD001 Model Training & Evaluation Module
 Author: Member A (Data & ML Lead)
 """
 
+import hashlib
 import json
 import os
+import sys
 import time
 import joblib
 import numpy as np
 import pandas as pd
+import sklearn
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 
 try:
-    from src.data_loader import get_validated_dataset, REPO_ROOT
+    from src.data_loader import get_validated_dataset, REPO_ROOT, compute_checksums
     from src.preprocess import prepare_engine_splits, create_sequence_windows
 except ImportError:
-    from data_loader import get_validated_dataset, REPO_ROOT
+    from data_loader import get_validated_dataset, REPO_ROOT, compute_checksums
     from preprocess import prepare_engine_splits, create_sequence_windows
 
 MODEL_DIR = os.path.join(REPO_ROOT, "models")
@@ -27,6 +30,26 @@ MAX_RUL_CAP = 125.0
 AUTHORITATIVE_Q05 = -15.01
 AUTHORITATIVE_Q95 = 24.08
 AUTHORITATIVE_COVERAGE_PCT = 89.98
+
+# Official NASA C-MAPSS Sensor Descriptions
+SENSOR_DESCRIPTIONS = {
+    "op_setting_1": "Altitude (Operational Setting 1)",
+    "op_setting_2": "Mach Number (Operational Setting 2)",
+    "sensor_2": "Total Temperature at LPC Outlet (°R)",
+    "sensor_3": "Total Temperature at HPC Outlet (°R)",
+    "sensor_4": "Total Temperature at LPT Outlet (°R)",
+    "sensor_7": "Total Pressure at HPC Outlet (psia)",
+    "sensor_8": "Physical Fan Speed (rpm)",
+    "sensor_9": "Physical Core Speed (rpm)",
+    "sensor_11": "Static Pressure at HPC Outlet (psia)",
+    "sensor_12": "Ratio of Fuel Flow to Ps30 (pps/psia)",
+    "sensor_13": "Corrected Fan Speed (rpm)",
+    "sensor_14": "Corrected Core Speed (rpm)",
+    "sensor_15": "Bypass Ratio",
+    "sensor_17": "Bleed Enthalpy",
+    "sensor_20": "HPT Coolant Bleed (lbm/s)",
+    "sensor_21": "LPT Coolant Bleed (lbm/s)"
+}
 
 
 def train_random_forest_baseline(X_train: np.ndarray, y_train: np.ndarray, random_state: int = 42) -> RandomForestRegressor:
@@ -42,35 +65,6 @@ def train_random_forest_baseline(X_train: np.ndarray, y_train: np.ndarray, rando
     )
     rf.fit(X_train, y_train)
     return rf
-
-
-def attempt_tensorflow_model(X_train_seq: np.ndarray, y_train_seq: np.ndarray, X_val_seq: np.ndarray, y_val_seq: np.ndarray):
-    """Attempt a compact TensorFlow/Keras sequence model if TensorFlow is available."""
-    try:
-        import tensorflow as tf
-        from tensorflow.keras.models import Sequential
-        from tensorflow.keras.layers import Conv1D, Dense, Flatten, Dropout
-        
-        print("TensorFlow detected! Training compact Keras 1D-Conv sequence model...")
-        model = Sequential([
-            Conv1D(filters=32, kernel_size=3, activation='relu', input_shape=(X_train_seq.shape[1], X_train_seq.shape[2])),
-            Conv1D(filters=16, kernel_size=3, activation='relu'),
-            Dropout(0.2),
-            Flatten(),
-            Dense(32, activation='relu'),
-            Dense(1)
-        ])
-        model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-        model.fit(X_train_seq, y_train_seq, epochs=10, batch_size=64, validation_data=(X_val_seq, y_val_seq), verbose=0)
-        
-        y_val_pred = model.predict(X_val_seq, verbose=0).flatten()
-        mae = float(mean_absolute_error(y_val_seq, y_val_pred))
-        rmse = float(root_mean_squared_error(y_val_seq, y_val_pred))
-        print(f"TensorFlow Sequence Model Trained! Validation MAE: {mae:.2f}, RMSE: {rmse:.2f}")
-        return model, {"mae": mae, "rmse": rmse}
-    except Exception as e:
-        print(f"TensorFlow sequence model omitted ({e}). Continuing with primary RandomForest baseline.")
-        return None, None
 
 
 def compute_comprehensive_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
@@ -118,7 +112,7 @@ def compute_comprehensive_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dic
 
 
 def extract_feature_importance(model: RandomForestRegressor, feature_names: list) -> dict:
-    """Extract and rank feature importances from RandomForest model."""
+    """Extract and rank feature importances with official NASA sensor descriptions."""
     importances = model.feature_importances_
     sorted_idx = np.argsort(importances)[::-1]
     
@@ -126,6 +120,7 @@ def extract_feature_importance(model: RandomForestRegressor, feature_names: list
         {
             "rank": i + 1,
             "feature": feature_names[idx],
+            "official_description": SENSOR_DESCRIPTIONS.get(feature_names[idx], "Operational Sensor"),
             "importance": round(float(importances[idx]), 6)
         }
         for i, idx in enumerate(sorted_idx)
@@ -141,7 +136,7 @@ def run_pipeline():
     os.makedirs(MODEL_DIR, exist_ok=True)
     
     # 1. Ingest & Validate
-    train_df, test_df, test_rul, checksums, sensor_meta, useful_features = get_validated_dataset()
+    train_df, test_df, test_rul, dataset_checksums, sensor_meta, useful_features = get_validated_dataset()
     
     # 2. Split by Engine & Scale
     train_split, val_split, scaler, scaled_cols = prepare_engine_splits(train_df, useful_features)
@@ -156,7 +151,7 @@ def run_pipeline():
     rf_model = train_random_forest_baseline(X_train, y_train)
     training_time_sec = time.time() - start_time
     
-    # 4. Evaluate Comprehensive Metrics
+    # 4. Evaluate Comprehensive Metrics & Feature Importances
     y_val_pred = rf_model.predict(X_val)
     perf_metrics = compute_comprehensive_metrics(y_val, y_val_pred)
     feat_importance = extract_feature_importance(rf_model, useful_features)
@@ -164,14 +159,8 @@ def run_pipeline():
     print(f"RandomForest Overall -> MAE: {perf_metrics['overall_mae']}, RMSE: {perf_metrics['overall_rmse']}")
     print(f"Near-Failure MAE (RUL <= 30): {perf_metrics['near_failure_mae']}")
     print(f"Authoritative 90% Empirical Coverage: {perf_metrics['empirical_interval_coverage_pct']}%")
-    print(f"Authoritative Residual Offsets: [{AUTHORITATIVE_Q05}, +{AUTHORITATIVE_Q95}]")
     
-    # 5. Optional TensorFlow Sequence Model Execution
-    X_tr_seq, y_tr_seq = create_sequence_windows(train_split, useful_features, sequence_length=WINDOW_LENGTH)
-    X_val_seq, y_val_seq = create_sequence_windows(val_split, useful_features, sequence_length=WINDOW_LENGTH)
-    tf_model, tf_metrics = attempt_tensorflow_model(X_tr_seq, y_tr_seq, X_val_seq, y_val_seq)
-    
-    # 6. Save Production Artifacts
+    # 5. Save Production Artifacts
     model_path = os.path.join(MODEL_DIR, "baseline_model.joblib")
     scaler_path = os.path.join(MODEL_DIR, "scaler.joblib")
     feat_order_path = os.path.join(MODEL_DIR, "feature_order.json")
@@ -187,12 +176,27 @@ def run_pipeline():
     with open(feat_imp_path, "w") as f:
         json.dump(feat_importance, f, indent=2)
         
+    # Checksums for exported binary model artifacts
+    artifact_checksums = {
+        "baseline_model.joblib": compute_checksums(model_path),
+        "scaler.joblib": compute_checksums(scaler_path)
+    }
+    
+    env_versions = {
+        "python": sys.version.split()[0],
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "joblib": joblib.__version__,
+        "scikit_learn": sklearn.__version__
+    }
+    
     metadata = {
         "model_name": "RandomForestRegressor_FD001",
-        "version": "1.2.0",
+        "version": "1.3.0",
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "training_time_seconds": round(training_time_sec, 2),
         "primary_target": "RUL_clipped (max=125)",
+        "environment_versions": env_versions,
         "feature_count": len(useful_features),
         "feature_order": useful_features,
         "scaled_feature_order": scaled_cols,
@@ -204,15 +208,15 @@ def run_pipeline():
             "Operational conditions assume single sea-level flight regime (FD001 configuration)."
         ],
         "performance_metrics": perf_metrics,
-        "tf_sequence_model_metrics": tf_metrics,
-        "checksums": checksums,
+        "artifact_checksums": artifact_checksums,
+        "dataset_checksums": dataset_checksums,
         "sensor_metadata": sensor_meta
     }
     
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
         
-    print(f"Artifacts saved successfully to {MODEL_DIR}")
+    print(f"Artifacts saved successfully to {MODEL_DIR} under scikit-learn {env_versions['scikit_learn']}")
     return metadata, val_split, rf_model, scaler, useful_features
 
 

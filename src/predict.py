@@ -107,7 +107,6 @@ class RULPredictor:
         data_quality_score = 1.0
         
         # 5. Extract final cycle snapshot (Cycle 30) for Random Forest baseline prediction
-        # Model limitation: Random Forest evaluates ONLY the final cycle of the 30-cycle window
         final_cycle_snapshot = df_clean.iloc[[-1]]
         
         # 6. Model Prediction
@@ -122,7 +121,7 @@ class RULPredictor:
         
         return {
             "model_name": self.metadata.get("model_name", "RandomForestRegressor_FD001"),
-            "version": self.metadata.get("version", "1.2.0"),
+            "version": self.metadata.get("version", "1.3.0"),
             "feature_order": self.feature_order,
             "window_length": REQUIRED_WINDOW_LENGTH,
             "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single prediction by extracting the final cycle snapshot (cycle 30) from the input window.",

@@ -1,0 +1,5 @@
+# C-MAPSS FD001 Environment Dependencies
+numpy>=2.0.0
+pandas>=2.0.0
+scikit-learn>=1.8.0
+joblib>=1.4.0
