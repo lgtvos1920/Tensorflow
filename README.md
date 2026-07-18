@@ -1,6 +1,6 @@
 # AeroShield: Predictive Maintenance Serving Gateway & Dashboard
 
-AeroShield is a production-grade predictive maintenance analytics application designed for serving machine learning models that predict the Remaining Useful Life (RUL) of industrial equipment (e.g., turbofan jet engines based on C-MAPSS FD001 dataset).
+AeroShield is a production-oriented research prototype predictive maintenance analytics application designed for serving machine learning models that predict the Remaining Useful Life (RUL) of industrial equipment (e.g., turbofan jet engines based on C-MAPSS FD001 dataset).
 
 It is built with a decoupled architecture featuring a **FastAPI** model serving backend and an **Apple-inspired dark-mode Streamlit** dashboard for human review and analysis.
 
