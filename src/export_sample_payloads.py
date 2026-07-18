@@ -1,5 +1,5 @@
 """
-Export Sample Payloads for Engine 54 (Successful) and Engine 74 (Difficult)
+Export Sample 30-Cycle Sequence Payloads for Engine 54 and Engine 74
 Author: Member A (Data & ML Lead)
 """
 
@@ -27,17 +27,13 @@ def export_member_b_payloads():
     e54 = val_df[val_df["unit_nr"] == 54].sort_values("cycle")
     e74 = val_df[val_df["unit_nr"] == 74].sort_values("cycle")
     
-    # 1. Single snapshot payload (latest cycle)
-    payload_54_single = e54[useful_feats].iloc[-1].to_dict()
-    payload_74_single = e74[useful_feats].iloc[-1].to_dict()
-    
-    # 2. 30-cycle sequence payload (last 30 cycles)
+    # Strictly 30-cycle sequence payload (last 30 cycles)
     payload_54_sequence_30 = e54[useful_feats].tail(30).to_dict(orient="records")
     payload_74_sequence_30 = e74[useful_feats].tail(30).to_dict(orient="records")
     
-    # Predictions for verification
-    pred_54 = predict_rul(payload_54_single)
-    pred_74 = predict_rul(payload_74_single)
+    # Verify predictions using standardized 30-cycle interface
+    pred_54 = predict_rul(payload_54_sequence_30)
+    pred_74 = predict_rul(payload_74_sequence_30)
     
     sample_payloads = {
         "engine_54_successful": {
@@ -45,7 +41,6 @@ def export_member_b_payloads():
             "description": "Engine 54: Successful low-error trajectory case.",
             "total_cycles": len(e54),
             "actual_final_rul": float(e54["RUL_clipped"].iloc[-1]),
-            "single_cycle_payload": payload_54_single,
             "sequence_30_cycle_payload": payload_54_sequence_30,
             "expected_predict_rul_response": pred_54
         },
@@ -54,7 +49,6 @@ def export_member_b_payloads():
             "description": "Engine 74: Difficult non-linear degradation case.",
             "total_cycles": len(e74),
             "actual_final_rul": float(e74["RUL_clipped"].iloc[-1]),
-            "single_cycle_payload": payload_74_single,
             "sequence_30_cycle_payload": payload_74_sequence_30,
             "expected_predict_rul_response": pred_74
         }
@@ -64,7 +58,7 @@ def export_member_b_payloads():
     with open(out_path, "w") as f:
         json.dump(sample_payloads, f, indent=2)
         
-    print(f"Sample payloads successfully exported to {out_path}")
+    print(f"Sample 30-cycle payloads successfully exported to {out_path}")
     return sample_payloads
 
 

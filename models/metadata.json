@@ -1,8 +1,8 @@
 {
   "model_name": "RandomForestRegressor_FD001",
-  "version": "1.0.0",
-  "timestamp": "2026-07-18 23:00:48",
-  "training_time_seconds": 1.95,
+  "version": "1.1.0",
+  "timestamp": "2026-07-18 23:23:01",
+  "training_time_seconds": 2.01,
   "primary_target": "RUL_clipped (max=125)",
   "feature_count": 16,
   "feature_order": [
@@ -41,15 +41,34 @@
     "sensor_20_scaled",
     "sensor_21_scaled"
   ],
-  "validation_metrics": {
-    "mae": 12.3476,
-    "rmse": 17.0591
-  },
-  "empirical_prediction_intervals": {
-    "lower_quantile_5": -34.27619517169601,
-    "upper_quantile_95": 24.07908093948684,
-    "mean_residual": -0.012058438556399582,
-    "std_residual": 17.059050205172788
+  "window_length": 30,
+  "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single RUL prediction by extracting the final cycle (cycle 30 snapshot) from the rolling window.",
+  "performance_metrics": {
+    "overall_mae": 12.3476,
+    "overall_rmse": 17.0591,
+    "near_failure_mae": 6.0716,
+    "empirical_quantiles": {
+      "lower_quantile_5": -34.2762,
+      "upper_quantile_95": 24.0791
+    },
+    "empirical_interval_coverage_pct": 89.98,
+    "segmented_metrics": {
+      "near_failure_le_30": {
+        "count": 620,
+        "mae": 6.0716,
+        "rmse": 9.0755
+      },
+      "mid_life_30_to_75": {
+        "count": 900,
+        "mae": 18.311,
+        "rmse": 24.1355
+      },
+      "early_life_gt_75": {
+        "count": 2550,
+        "mae": 11.7688,
+        "rmse": 15.4549
+      }
+    }
   },
   "tf_sequence_model_metrics": null,
   "checksums": {
@@ -136,6 +155,5 @@
       "sensor_20": 0.18074642787366083,
       "sensor_21": 0.10825087474491234
     }
-  },
-  "window_length": 30
+  }
 }

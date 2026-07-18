@@ -20,6 +20,8 @@ except ImportError:
     from preprocess import prepare_engine_splits, create_sequence_windows
 
 MODEL_DIR = os.path.join(REPO_ROOT, "models")
+WINDOW_LENGTH = 30
+MAX_RUL_CAP = 125.0
 
 
 def train_random_forest_baseline(X_train: np.ndarray, y_train: np.ndarray, random_state: int = 42) -> RandomForestRegressor:
@@ -38,7 +40,7 @@ def train_random_forest_baseline(X_train: np.ndarray, y_train: np.ndarray, rando
 
 
 def attempt_tensorflow_model(X_train_seq: np.ndarray, y_train_seq: np.ndarray, X_val_seq: np.ndarray, y_val_seq: np.ndarray):
-    """Attempt a compact TensorFlow/Keras 1D-Conv/LSTM sequence model if TensorFlow is available."""
+    """Attempt a compact TensorFlow/Keras sequence model if TensorFlow is available."""
     try:
         import tensorflow as tf
         from tensorflow.keras.models import Sequential
@@ -66,20 +68,65 @@ def attempt_tensorflow_model(X_train_seq: np.ndarray, y_train_seq: np.ndarray, X
         return None, None
 
 
-def compute_empirical_intervals(y_true: np.ndarray, y_pred: np.ndarray, quantiles: list = [0.05, 0.95]) -> dict:
-    """Compute empirical residual bounds (prediction intervals) from validation set."""
+def compute_comprehensive_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
+    """
+    Compute overall MAE/RMSE, segmented RUL performance metrics,
+    near-failure MAE (RUL <= 30), empirical quantiles, and empirical coverage.
+    """
+    overall_mae = float(mean_absolute_error(y_true, y_pred))
+    overall_rmse = float(root_mean_squared_error(y_true, y_pred))
+    
+    # 1. Residuals and empirical quantiles (5% and 95%)
     residuals = y_true - y_pred
-    bounds = np.quantile(residuals, quantiles).tolist()
+    q05 = float(np.quantile(residuals, 0.05))
+    q95 = float(np.quantile(residuals, 0.95))
+    
+    # 2. Empirical interval bounds capped at [0, 125]
+    lower_bounds = np.clip(y_pred + q05, 0.0, MAX_RUL_CAP)
+    upper_bounds = np.clip(y_pred + q95, 0.0, MAX_RUL_CAP)
+    
+    # Coverage: % of true RULs falling inside [lower_bound, upper_bound]
+    covered = (y_true >= lower_bounds) & (y_true <= upper_bounds)
+    empirical_coverage = float(np.mean(covered) * 100.0)
+    
+    # 3. Segmented RUL Metrics
+    mask_near = y_true <= 30.0
+    mask_mid = (y_true > 30.0) & (y_true <= 75.0)
+    mask_early = y_true > 75.0
+    
+    segmented = {
+        "near_failure_le_30": {
+            "count": int(np.sum(mask_near)),
+            "mae": round(float(mean_absolute_error(y_true[mask_near], y_pred[mask_near])), 4) if np.sum(mask_near) > 0 else None,
+            "rmse": round(float(root_mean_squared_error(y_true[mask_near], y_pred[mask_near])), 4) if np.sum(mask_near) > 0 else None
+        },
+        "mid_life_30_to_75": {
+            "count": int(np.sum(mask_mid)),
+            "mae": round(float(mean_absolute_error(y_true[mask_mid], y_pred[mask_mid])), 4) if np.sum(mask_mid) > 0 else None,
+            "rmse": round(float(root_mean_squared_error(y_true[mask_mid], y_pred[mask_mid])), 4) if np.sum(mask_mid) > 0 else None
+        },
+        "early_life_gt_75": {
+            "count": int(np.sum(mask_early)),
+            "mae": round(float(mean_absolute_error(y_true[mask_early], y_pred[mask_early])), 4) if np.sum(mask_early) > 0 else None,
+            "rmse": round(float(root_mean_squared_error(y_true[mask_early], y_pred[mask_early])), 4) if np.sum(mask_early) > 0 else None
+        }
+    }
+    
     return {
-        "lower_quantile_5": bounds[0],
-        "upper_quantile_95": bounds[1],
-        "mean_residual": float(np.mean(residuals)),
-        "std_residual": float(np.std(residuals))
+        "overall_mae": round(overall_mae, 4),
+        "overall_rmse": round(overall_rmse, 4),
+        "near_failure_mae": segmented["near_failure_le_30"]["mae"],
+        "empirical_quantiles": {
+            "lower_quantile_5": round(q05, 4),
+            "upper_quantile_95": round(q95, 4)
+        },
+        "empirical_interval_coverage_pct": round(empirical_coverage, 2),
+        "segmented_metrics": segmented
     }
 
 
 def run_pipeline():
-    """Execute full dataset loading, splitting, model training, evaluation, and artifact saving."""
+    """Execute dataset loading, engine splitting, model training, evaluation, and artifact saving."""
     os.makedirs(MODEL_DIR, exist_ok=True)
     
     # 1. Ingest & Validate
@@ -88,7 +135,7 @@ def run_pipeline():
     # 2. Split by Engine & Scale
     train_split, val_split, scaler, scaled_cols = prepare_engine_splits(train_df, useful_features)
     
-    # 3. Train Primary RandomForest Model
+    # 3. Train Primary RandomForest Model using cycle snapshots
     X_train = train_split[useful_features].values
     y_train = train_split["RUL_clipped"].values
     X_val = val_split[useful_features].values
@@ -98,21 +145,19 @@ def run_pipeline():
     rf_model = train_random_forest_baseline(X_train, y_train)
     training_time_sec = time.time() - start_time
     
-    # 4. Evaluate Validation Metrics
+    # 4. Evaluate Comprehensive Metrics
     y_val_pred = rf_model.predict(X_val)
-    val_mae = float(mean_absolute_error(y_val, y_val_pred))
-    val_rmse = float(root_mean_squared_error(y_val, y_val_pred))
-    print(f"RandomForest Validation Performance -> MAE: {val_mae:.4f}, RMSE: {val_rmse:.4f}")
+    perf_metrics = compute_comprehensive_metrics(y_val, y_val_pred)
+    print(f"RandomForest Overall -> MAE: {perf_metrics['overall_mae']}, RMSE: {perf_metrics['overall_rmse']}")
+    print(f"Near-Failure MAE (RUL <= 30): {perf_metrics['near_failure_mae']}")
+    print(f"Empirical 90% Coverage: {perf_metrics['empirical_interval_coverage_pct']}%")
     
-    # 5. Compute Empirical Residual Bounds
-    residual_meta = compute_empirical_intervals(y_val, y_val_pred)
-    
-    # 6. Optional TensorFlow Model Execution
-    X_tr_seq, y_tr_seq = create_sequence_windows(train_split, useful_features, sequence_length=30)
-    X_val_seq, y_val_seq = create_sequence_windows(val_split, useful_features, sequence_length=30)
+    # 5. Optional TensorFlow Sequence Model Execution
+    X_tr_seq, y_tr_seq = create_sequence_windows(train_split, useful_features, sequence_length=WINDOW_LENGTH)
+    X_val_seq, y_val_seq = create_sequence_windows(val_split, useful_features, sequence_length=WINDOW_LENGTH)
     tf_model, tf_metrics = attempt_tensorflow_model(X_tr_seq, y_tr_seq, X_val_seq, y_val_seq)
     
-    # 7. Save Production Artifacts
+    # 6. Save Production Artifacts
     model_path = os.path.join(MODEL_DIR, "baseline_model.joblib")
     scaler_path = os.path.join(MODEL_DIR, "scaler.joblib")
     feat_order_path = os.path.join(MODEL_DIR, "feature_order.json")
@@ -126,22 +171,19 @@ def run_pipeline():
         
     metadata = {
         "model_name": "RandomForestRegressor_FD001",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "training_time_seconds": round(training_time_sec, 2),
         "primary_target": "RUL_clipped (max=125)",
         "feature_count": len(useful_features),
         "feature_order": useful_features,
         "scaled_feature_order": scaled_cols,
-        "validation_metrics": {
-            "mae": round(val_mae, 4),
-            "rmse": round(val_rmse, 4)
-        },
-        "empirical_prediction_intervals": residual_meta,
+        "window_length": WINDOW_LENGTH,
+        "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single RUL prediction by extracting the final cycle (cycle 30 snapshot) from the rolling window.",
+        "performance_metrics": perf_metrics,
         "tf_sequence_model_metrics": tf_metrics,
         "checksums": checksums,
-        "sensor_metadata": sensor_meta,
-        "window_length": 30
+        "sensor_metadata": sensor_meta
     }
     
     with open(metadata_path, "w") as f:

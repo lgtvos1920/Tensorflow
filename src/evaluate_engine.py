@@ -17,29 +17,38 @@ except ImportError:
     from predict import RULPredictor
 
 MODEL_DIR = os.path.join(REPO_ROOT, "models")
+WINDOW_LENGTH = 30
 
 
 def extract_engine_case_studies(val_df: pd.DataFrame, predictor: RULPredictor) -> dict:
     """
-    Evaluate validation engines cycle-by-cycle and extract 1 successful
-    and 1 difficult engine case study for Member B & C UI visualization.
+    Evaluate validation engines cycle-by-cycle using 30-cycle rolling windows
+    and extract 1 successful and 1 difficult engine case study for Member B & C UI visualization.
     """
     engine_results = {}
     
     for unit_nr, group in val_df.groupby("unit_nr"):
         group = group.sort_values("cycle").reset_index(drop=True)
+        n_samples = len(group)
+        if n_samples < WINDOW_LENGTH:
+            continue
+            
+        actual_ruls = []
+        pred_ruls = []
+        cycles = []
         
-        actual_ruls = group["RUL_clipped"].values
-        cycles = group["cycle"].tolist()
-        
-        # Predict cycle by cycle
-        X_raw = group[predictor.feature_order].values
-        pred_ruls = predictor.model.predict(X_raw)
-        
+        for i in range(WINDOW_LENGTH, n_samples + 1):
+            window_df = group.iloc[i - WINDOW_LENGTH:i]
+            res = predictor.predict_rul(window_df)
+            
+            actual_ruls.append(float(group["RUL_clipped"].iloc[i - 1]))
+            pred_ruls.append(float(res["estimated_rul"]))
+            cycles.append(int(group["cycle"].iloc[i - 1]))
+            
         rmse = float(root_mean_squared_error(actual_ruls, pred_ruls))
-        mae = float(np.mean(np.abs(actual_ruls - pred_ruls)))
+        mae = float(np.mean(np.abs(np.array(actual_ruls) - np.array(pred_ruls))))
         
-        # Extract sample unscaled and scaled features for visualization tooltips
+        # Sample unscaled features for final cycle
         sample_unscaled = group[predictor.feature_order].iloc[-1].to_dict()
         sample_scaled_cols = [f"{c}_scaled" for c in predictor.feature_order]
         sample_scaled = group[sample_scaled_cols].iloc[-1].to_dict() if all(c in group.columns for c in sample_scaled_cols) else {}
@@ -47,18 +56,18 @@ def extract_engine_case_studies(val_df: pd.DataFrame, predictor: RULPredictor) -
         engine_results[int(unit_nr)] = {
             "unit_nr": int(unit_nr),
             "total_cycles": len(group),
+            "eval_windows_count": len(cycles),
             "rmse": round(rmse, 4),
             "mae": round(mae, 4),
             "cycles": cycles,
-            "actual_rul": [round(float(v), 2) for v in actual_ruls],
-            "predicted_rul": [round(float(v), 2) for v in pred_ruls],
-            "final_actual_rul": round(float(actual_ruls[-1]), 2),
-            "final_predicted_rul": round(float(pred_ruls[-1]), 2),
+            "actual_rul": [round(v, 2) for v in actual_ruls],
+            "predicted_rul": [round(v, 2) for v in pred_ruls],
+            "final_actual_rul": round(actual_ruls[-1], 2),
+            "final_predicted_rul": round(pred_ruls[-1], 2),
             "latest_unscaled_features": sample_unscaled,
             "latest_scaled_features": sample_scaled
         }
         
-    # Sort engines by RMSE
     sorted_engines = sorted(engine_results.values(), key=lambda x: x["rmse"])
     successful_engine = sorted_engines[0]   # Lowest RMSE
     difficult_engine = sorted_engines[-1]   # Highest RMSE
@@ -66,13 +75,13 @@ def extract_engine_case_studies(val_df: pd.DataFrame, predictor: RULPredictor) -
     case_studies = {
         "successful_engine_example": {
             "type": "SUCCESSFUL",
-            "description": f"Engine #{successful_engine['unit_nr']} demonstrated smooth, highly predictable degradation with minimal error.",
+            "description": f"Engine #{successful_engine['unit_nr']} demonstrated smooth degradation curve with low error.",
             "metrics": {"rmse": successful_engine["rmse"], "mae": successful_engine["mae"]},
             "data": successful_engine
         },
         "difficult_engine_example": {
             "type": "DIFFICULT",
-            "description": f"Engine #{difficult_engine['unit_nr']} exhibited non-linear degradation / operational variance leading to higher prediction variance.",
+            "description": f"Engine #{difficult_engine['unit_nr']} exhibited non-linear degradation leading to higher prediction variance.",
             "metrics": {"rmse": difficult_engine["rmse"], "mae": difficult_engine["mae"]},
             "data": difficult_engine
         }

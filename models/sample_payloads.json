@@ -4,24 +4,6 @@
     "description": "Engine 54: Successful low-error trajectory case.",
     "total_cycles": 257,
     "actual_final_rul": 0.0,
-    "single_cycle_payload": {
-      "op_setting_1": -0.0009,
-      "op_setting_2": -0.0003,
-      "sensor_2": 643.8,
-      "sensor_3": 1601.79,
-      "sensor_4": 1433.26,
-      "sensor_7": 551.37,
-      "sensor_8": 2388.16,
-      "sensor_9": 9155.85,
-      "sensor_11": 48.15,
-      "sensor_12": 519.57,
-      "sensor_13": 2388.15,
-      "sensor_14": 8220.23,
-      "sensor_15": 8.5295,
-      "sensor_17": 395.0,
-      "sensor_20": 38.3,
-      "sensor_21": 23.05
-    },
     "sequence_30_cycle_payload": [
       {
         "op_setting_1": -0.001,
@@ -566,7 +548,7 @@
     ],
     "expected_predict_rul_response": {
       "model_name": "RandomForestRegressor_FD001",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "feature_order": [
         "op_setting_1",
         "op_setting_2",
@@ -586,12 +568,13 @@
         "sensor_21"
       ],
       "window_length": 30,
+      "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single prediction by extracting the final cycle snapshot (cycle 30) from the input window.",
       "estimated_rul": 1.82,
       "lower_bound": 0.0,
       "upper_bound": 25.9,
       "risk_level": "CRITICAL",
       "data_quality_score": 1.0,
-      "recommendation": "IMMEDIATE ACTION REQUIRED: Engine approaching end-of-life. Schedule immediate engine swap / overhaul."
+      "recommendation": "CRITICAL ALERT: RUL <= 15 cycles. Require immediate qualified engineering inspection and detailed diagnostic checks before further flight operation."
     }
   },
   "engine_74_difficult": {
@@ -599,24 +582,6 @@
     "description": "Engine 74: Difficult non-linear degradation case.",
     "total_cycles": 166,
     "actual_final_rul": 0.0,
-    "single_cycle_payload": {
-      "op_setting_1": 0.0011,
-      "op_setting_2": 0.0003,
-      "sensor_2": 643.29,
-      "sensor_3": 1604.39,
-      "sensor_4": 1431.14,
-      "sensor_7": 550.35,
-      "sensor_8": 2388.3,
-      "sensor_9": 9056.35,
-      "sensor_11": 48.07,
-      "sensor_12": 519.52,
-      "sensor_13": 2388.25,
-      "sensor_14": 8123.87,
-      "sensor_15": 8.5309,
-      "sensor_17": 398.0,
-      "sensor_20": 38.36,
-      "sensor_21": 22.9906
-    },
     "sequence_30_cycle_payload": [
       {
         "op_setting_1": 0.0043,
@@ -1161,7 +1126,7 @@
     ],
     "expected_predict_rul_response": {
       "model_name": "RandomForestRegressor_FD001",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "feature_order": [
         "op_setting_1",
         "op_setting_2",
@@ -1181,12 +1146,13 @@
         "sensor_21"
       ],
       "window_length": 30,
+      "sequence_conversion_strategy": "The Random Forest converts the (30, 16) sequence into a single prediction by extracting the final cycle snapshot (cycle 30) from the input window.",
       "estimated_rul": 3.39,
       "lower_bound": 0.0,
       "upper_bound": 27.47,
       "risk_level": "CRITICAL",
       "data_quality_score": 1.0,
-      "recommendation": "IMMEDIATE ACTION REQUIRED: Engine approaching end-of-life. Schedule immediate engine swap / overhaul."
+      "recommendation": "CRITICAL ALERT: RUL <= 15 cycles. Require immediate qualified engineering inspection and detailed diagnostic checks before further flight operation."
     }
   }
 }
