@@ -1,8 +1,8 @@
 {
   "model_name": "RandomForestRegressor_FD001",
   "version": "1.3.0",
-  "timestamp": "2026-07-18 23:38:08",
-  "training_time_seconds": 1.95,
+  "timestamp": "2026-07-18 23:46:58",
+  "training_time_seconds": 2.04,
   "primary_target": "RUL_clipped (max=125)",
   "environment_versions": {
     "python": "3.14.0",

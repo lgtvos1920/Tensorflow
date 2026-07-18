@@ -49,7 +49,7 @@ class RULPredictor:
     def determine_risk_and_recommendation(self, estimated_rul: float) -> tuple:
         """
         Determine risk level classification and actionable maintenance recommendation.
-        Requires immediate qualified engineering inspection rather than automatic overhaul.
+        Uses neutral prototype wording rather than safety-certifying language.
         """
         if estimated_rul <= 15.0:
             risk = "CRITICAL"
@@ -59,10 +59,10 @@ class RULPredictor:
             rec = "HIGH PRIORITY: RUL <= 30 cycles. Require qualified engineering inspection during next scheduled service window."
         elif estimated_rul <= 60.0:
             risk = "MEDIUM"
-            rec = "ELEVATED MONITORING: RUL <= 60 cycles. Routine inspection recommended."
+            rec = "ELEVATED MONITORING: RUL <= 60 cycles. Routine inspection recommended within validated dataset range."
         else:
             risk = "LOW"
-            rec = "NOMINAL: Operating within safety bounds."
+            rec = "NOMINAL: Nominal behavior detected within the model's validated dataset range."
         return risk, rec
 
     def _convert_input_to_df(self, input_data) -> pd.DataFrame:

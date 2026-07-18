@@ -24,28 +24,33 @@ import sys, os, json
 sys.path.insert(0, os.path.abspath('.'))
 from src.predict import predict_rul
 
-sample_payload = {
-    'op_setting_1': -0.0007,
-    'op_setting_2': -0.0004,
-    'sensor_2': 641.82,
-    'sensor_3': 1589.70,
-    'sensor_4': 1400.60,
-    'sensor_7': 554.36,
-    'sensor_8': 2388.06,
-    'sensor_9': 9046.19,
-    'sensor_11': 47.47,
-    'sensor_12': 521.66,
-    'sensor_13': 2388.02,
-    'sensor_14': 8138.62,
-    'sensor_15': 8.4195,
-    'sensor_17': 392,
-    'sensor_20': 39.06,
-    'sensor_21': 23.4190
-}
+sample_payload_30 = [
+    {
+        'op_setting_1': -0.0007,
+        'op_setting_2': -0.0004,
+        'sensor_2': 641.82,
+        'sensor_3': 1589.70,
+        'sensor_4': 1400.60,
+        'sensor_7': 554.36,
+        'sensor_8': 2388.06,
+        'sensor_9': 9046.19,
+        'sensor_11': 47.47,
+        'sensor_12': 521.66,
+        'sensor_13': 2388.02,
+        'sensor_14': 8138.62,
+        'sensor_15': 8.4195,
+        'sensor_17': 392,
+        'sensor_20': 39.06,
+        'sensor_21': 23.4190
+    }
+    for _ in range(30)
+]
 
-result = predict_rul(sample_payload)
+result = predict_rul(sample_payload_30)
 print("SUCCESS_CLEAN_CLONE")
 print(json.dumps(result, indent=2))
+assert result["version"] == "1.3.0", f"Version mismatch: {result['version']}"
+assert "validated dataset range" in result["recommendation"], f"Recommendation language safety violation: {result['recommendation']}"
 """
         script_path = os.path.join(clone_dir, "test_isolated.py")
         with open(script_path, "w") as f:
@@ -58,7 +63,7 @@ print(json.dumps(result, indent=2))
             print("Stderr:\n", res_py.stderr)
             
         assert "SUCCESS_CLEAN_CLONE" in res_py.stdout, "Clean clone test failed!"
-        print("Clean clone verification passed 100%!")
+        print("Clean clone verification passed 100% with version 1.3.0 and neutral prototype wording!")
 
 
 if __name__ == "__main__":

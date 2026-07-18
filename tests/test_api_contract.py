@@ -29,6 +29,7 @@ class TestRULPredictorAPIContract(unittest.TestCase):
     def test_valid_sequence_prediction(self):
         """Test prediction with valid (30, 16) sequence."""
         res = predict_rul(self.valid_30_seq)
+        self.assertEqual(res["version"], "1.3.0")
         self.assertEqual(res["window_length"], 30)
         self.assertIn("estimated_rul", res)
         self.assertIn("lower_bound", res)
@@ -38,7 +39,7 @@ class TestRULPredictorAPIContract(unittest.TestCase):
         self.assertTrue(0.0 <= res["estimated_rul"] <= 125.0)
         self.assertTrue(0.0 <= res["lower_bound"] <= 125.0)
         self.assertTrue(0.0 <= res["upper_bound"] <= 125.0)
-        self.assertIsInstance(res["recommendation"], str)
+        self.assertIn("nominal behavior detected within the model's validated dataset range", res["recommendation"].lower())
 
     def test_critical_risk_recommendation_text(self):
         """Test that CRITICAL risk level requires immediate qualified engineering inspection."""
