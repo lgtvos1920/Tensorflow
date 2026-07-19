@@ -21,8 +21,7 @@ MODEL_DIR = os.path.join(REPO_ROOT, "models")
 REQUIRED_WINDOW_LENGTH = 30
 MAX_RUL_CAP = 125.0
 
-AUTHORITATIVE_Q05 = -15.01
-AUTHORITATIVE_Q95 = 24.08
+MAX_RUL_CAP = 125.0
 
 
 class RULPredictor:
@@ -43,8 +42,8 @@ class RULPredictor:
             self.metadata = json.load(f)
             
         quantiles = self.metadata.get("performance_metrics", {}).get("empirical_quantiles", {})
-        self.q05 = float(quantiles.get("lower_quantile_5", AUTHORITATIVE_Q05))
-        self.q95 = float(quantiles.get("upper_quantile_95", AUTHORITATIVE_Q95))
+        self.q05 = float(quantiles.get("lower_quantile_5", -15.0))
+        self.q95 = float(quantiles.get("upper_quantile_95", 25.0))
 
     def determine_risk_and_recommendation(self, estimated_rul: float) -> tuple:
         """
@@ -104,7 +103,10 @@ class RULPredictor:
         if df_clean.isnull().values.any() or not np.isfinite(df_clean.values).all():
             raise ValueError("Input sequence contains non-finite values (NaN or Inf). Inspection rejected.")
             
-        data_quality_score = 1.0
+        # Real data quality score: fraction of values within ±3 standard deviations
+        scaled_values = self.scaler.transform(df_clean.values)
+        in_bounds_fraction = np.mean((scaled_values >= -3.0) & (scaled_values <= 3.0))
+        data_quality_score = float(round(in_bounds_fraction, 4))
         
         # 5. Extract final cycle snapshot (Cycle 30) for Random Forest baseline prediction
         final_cycle_snapshot = df_clean.iloc[[-1]]
@@ -135,15 +137,7 @@ class RULPredictor:
         }
 
 
-# Global predictor instance
-_predictor_instance = None
 
-def predict_rul(input_data) -> dict:
-    """Standalone function wrapping RULPredictor.predict_rul()."""
-    global _predictor_instance
-    if _predictor_instance is None:
-        _predictor_instance = RULPredictor()
-    return _predictor_instance.predict_rul(input_data)
 
 
 if __name__ == "__main__":

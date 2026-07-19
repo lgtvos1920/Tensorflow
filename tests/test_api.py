@@ -1,42 +1,25 @@
-from fastapi.testclient import TestClient
 import pytest
 import os
-import json
-from app.main import app
-from app.config import BASE_DIR, WINDOW_SIZE, NUM_FEATURES, FEATURE_ORDER
+import shutil
+from app.config import BASE_DIR, WINDOW_SIZE, NUM_FEATURES
 from app.api.endpoints import predictor_service
 
-client = TestClient(app)
-
-# Load official engine payloads from Member A's artifacts file
-payloads_file = os.path.join(BASE_DIR, "models", "sample_payloads.json")
-if os.path.exists(payloads_file):
-    with open(payloads_file, "r") as f:
-        SAMPLE_PAYLOADS = json.load(f)
-else:
-    raise FileNotFoundError(f"Missing official integration payloads at {payloads_file}")
-
-# Format the dict payloads into lists of lists of floats to match the API contract
-def get_sensor_window_payload(raw_case):
-    seq = raw_case["sequence_30_cycle_payload"]
-    return [[row[feat] for feat in FEATURE_ORDER] for row in seq]
-
-def test_health_endpoint():
+def test_health_endpoint(test_client):
     """
     Verifies /health endpoint returns 200 OK and correct structure.
     """
-    response = client.get("/health")
+    response = test_client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
     assert "api_version" in data
     assert isinstance(data["model_loaded"], bool)
 
-def test_model_info_endpoint():
+def test_model_info_endpoint(test_client):
     """
     Verifies /model-info returns metadata matching the active Random Forest model.
     """
-    response = client.get("/model-info")
+    response = test_client.get("/model-info")
     assert response.status_code == 200
     data = response.json()
     assert data["model_name"] == "RandomForestRegressor_FD001"
@@ -48,12 +31,12 @@ def test_model_info_endpoint():
     assert "MAE" in data["metrics"]
     assert "RMSE" in data["metrics"]
 
-def test_predict_rul_engine_54_valid():
+def test_predict_rul_engine_54_valid(test_client, sample_payloads, get_sensor_window_payload):
     """
     Tests /predict/rul using the official Engine 54 payload.
     Verifies the newly added prediction interval level, coverage, description, and strategy.
     """
-    case_data = SAMPLE_PAYLOADS["engine_54_successful"]
+    case_data = sample_payloads["engine_54_successful"]
     window = get_sensor_window_payload(case_data)
     
     payload = {
@@ -62,7 +45,7 @@ def test_predict_rul_engine_54_valid():
         "sensor_window": window
     }
     
-    response = client.post("/predict/rul", json=payload)
+    response = test_client.post("/predict/rul", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["engine_id"] == 54
@@ -80,11 +63,11 @@ def test_predict_rul_engine_54_valid():
     assert data["model_name"] == "RandomForestRegressor_FD001"
     assert data["model_version"] == "1.3.0"
 
-def test_predict_rul_engine_74_valid():
+def test_predict_rul_engine_74_valid(test_client, sample_payloads, get_sensor_window_payload):
     """
     Tests /predict/rul using the official Engine 74 payload.
     """
-    case_data = SAMPLE_PAYLOADS["engine_74_difficult"]
+    case_data = sample_payloads["engine_74_difficult"]
     window = get_sensor_window_payload(case_data)
     
     payload = {
@@ -92,7 +75,7 @@ def test_predict_rul_engine_74_valid():
         "cycle": case_data["total_cycles"],
         "sensor_window": window
     }
-    response = client.post("/predict/rul", json=payload)
+    response = test_client.post("/predict/rul", json=payload)
     assert response.status_code == 200
     data = response.json()
     assert data["engine_id"] == 74
@@ -104,31 +87,24 @@ def test_predict_rul_engine_74_valid():
     assert "sequence_conversion_strategy" in data
     assert data["risk_level"] in ("Low", "Medium", "High", "Critical")
 
-def test_predict_rul_invalid_dimensions():
+@pytest.mark.parametrize("bad_shape", [
+    [[1.0] * (NUM_FEATURES - 1)] * WINDOW_SIZE,  # Malformed features: 15 instead of 16
+    [[1.0] * NUM_FEATURES] * (WINDOW_SIZE - 1),  # Malformed timesteps: 29 instead of 30
+    [[1.0] * (NUM_FEATURES + 1)] * WINDOW_SIZE   # Malformed features: 17 instead of 16
+])
+def test_predict_rul_invalid_dimensions(test_client, bad_shape):
     """
-    Tests that sequences with incorrect shapes (not 30x16) are rejected.
+    Tests that sequences with incorrect shapes are rejected.
     """
-    # Malformed features: 15 features instead of 16
-    bad_features_window = [[1.0] * (NUM_FEATURES - 1)] * WINDOW_SIZE
     payload = {
         "engine_id": 54,
         "cycle": 257,
-        "sensor_window": bad_features_window
+        "sensor_window": bad_shape
     }
-    response = client.post("/predict/rul", json=payload)
+    response = test_client.post("/predict/rul", json=payload)
     assert response.status_code == 422
-    
-    # Malformed timesteps: 29 timesteps instead of 30
-    bad_timesteps_window = [[1.0] * NUM_FEATURES] * (WINDOW_SIZE - 1)
-    payload_time = {
-        "engine_id": 54,
-        "cycle": 257,
-        "sensor_window": bad_timesteps_window
-    }
-    response_time = client.post("/predict/rul", json=payload_time)
-    assert response_time.status_code == 422
 
-def test_predict_rul_non_finite():
+def test_predict_rul_non_finite(test_client):
     """
     Tests that requests with non-finite values (NaN, Inf) are rejected.
     """
@@ -140,51 +116,58 @@ def test_predict_rul_non_finite():
         "cycle": 257,
         "sensor_window": bad_window
     }
-    response = client.post("/predict/rul", json=payload)
+    response = test_client.post("/predict/rul", json=payload)
     assert response.status_code == 422
 
-def test_missing_artifacts_behavior():
+def test_missing_artifacts_behavior(test_client, sample_payloads, get_sensor_window_payload, monkeypatch, tmp_path):
     """
     Simulates missing model artifacts to test the explicit model-unavailable state.
-    Health endpoint should remain online with model_loaded: false,
-    and predictions/model-info should return 503 Service Unavailable.
+    Monkeypatches the model directory instead of altering repo files.
     """
-    model_dir = os.path.join(BASE_DIR, "models")
-    model_file = os.path.join(model_dir, "baseline_model.joblib")
-    temp_file = os.path.join(model_dir, "baseline_model.joblib.bak")
+    # Point predictor service to an empty temp dir
+    empty_models_dir = tmp_path / "models"
+    empty_models_dir.mkdir()
     
-    # If the file exists, temporarily rename it to simulate missing model
-    if os.path.exists(model_file):
-        os.rename(model_file, temp_file)
-        
     try:
+        import sys
+        
+        # Monkeypatch the module variable where model_dir logic lives
+        original_init = predictor_service.__init__
+        
+        def mock_init(self):
+            # Same init logic but override REPO_ROOT effectively
+            self.model_loaded = False
+            self.predictor = None
+            self.metadata = {}
+            
+        monkeypatch.setattr(predictor_service.__class__, "__init__", mock_init)
+        
         # Trigger reload of the predictor service to check directory
         predictor_service.__init__()
         
         # 1. Health check should still return 200 but model_loaded: False
-        health_resp = client.get("/health")
+        health_resp = test_client.get("/health")
         assert health_resp.status_code == 200
         assert health_resp.json()["model_loaded"] is False
         
         # 2. Predict should return 503 Service Unavailable
-        case_data = SAMPLE_PAYLOADS["engine_54_successful"]
+        case_data = sample_payloads["engine_54_successful"]
         window = get_sensor_window_payload(case_data)
         payload = {
             "engine_id": case_data["unit_nr"],
             "cycle": case_data["total_cycles"],
             "sensor_window": window
         }
-        pred_resp = client.post("/predict/rul", json=payload)
+        pred_resp = test_client.post("/predict/rul", json=payload)
         assert pred_resp.status_code == 503
         
         # 3. Model Info should return 503 Service Unavailable
-        info_resp = client.get("/model-info")
+        info_resp = test_client.get("/model-info")
         assert info_resp.status_code == 503
         
     finally:
-        # Restore the model file and restore service state
-        if os.path.exists(temp_file):
-            os.rename(temp_file, model_file)
+        # Re-initialize properly when exiting
+        monkeypatch.undo()
         predictor_service.__init__()
         
     # Verify it restored successfully

@@ -12,7 +12,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.predict import RULPredictor, predict_rul
+from src.predict import RULPredictor
 
 
 class TestPipelineRobustness(unittest.TestCase):
@@ -32,13 +32,13 @@ class TestPipelineRobustness(unittest.TestCase):
         seq = [{f: 0.5 for f in self.feature_order} for _ in range(30)]
         seq[10]["sensor_2"] = np.nan
         with self.assertRaises(ValueError) as ctx:
-            predict_rul(seq)
+            self.predictor.predict_rul(seq)
         self.assertIn("non-finite values", str(ctx.exception))
 
     def test_sensor_noise_robustness(self):
         """Test that small Gaussian sensor noise preserves prediction stability."""
         clean_seq = self.sample_payloads["engine_54_successful"]["sequence_30_cycle_payload"]
-        res_clean = predict_rul(clean_seq)
+        res_clean = self.predictor.predict_rul(clean_seq)
         
         # Add small Gaussian noise (std=0.01) to numeric sensor values
         np.random.seed(42)
@@ -49,7 +49,7 @@ class TestPipelineRobustness(unittest.TestCase):
                 noisy_row[k] = float(v + np.random.normal(0, 0.01))
             noisy_seq.append(noisy_row)
             
-        res_noisy = predict_rul(noisy_seq)
+        res_noisy = self.predictor.predict_rul(noisy_seq)
         
         # Prediction shift under 0.01 noise should be < 1.5 cycles
         rul_diff = abs(res_clean["estimated_rul"] - res_noisy["estimated_rul"])
@@ -67,8 +67,8 @@ class TestPipelineRobustness(unittest.TestCase):
             reordered_row = {k: row[k] for k in reversed_keys}
             reordered_seq.append(reordered_row)
             
-        res_orig = predict_rul(clean_seq)
-        res_reordered = predict_rul(reordered_seq)
+        res_orig = self.predictor.predict_rul(clean_seq)
+        res_reordered = self.predictor.predict_rul(reordered_seq)
         
         self.assertEqual(res_orig["estimated_rul"], res_reordered["estimated_rul"])
         self.assertEqual(res_orig["lower_bound"], res_reordered["lower_bound"])
@@ -77,7 +77,7 @@ class TestPipelineRobustness(unittest.TestCase):
     def test_difficult_trajectory_engine_74(self):
         """Test prediction robustness on Engine 74 (difficult non-linear trajectory)."""
         engine_74_seq = self.sample_payloads["engine_74_difficult"]["sequence_30_cycle_payload"]
-        res = predict_rul(engine_74_seq)
+        res = self.predictor.predict_rul(engine_74_seq)
         
         self.assertEqual(res["window_length"], 30)
         self.assertIn("CRITICAL", res["risk_level"])
@@ -90,19 +90,19 @@ class TestPipelineRobustness(unittest.TestCase):
     def test_empty_sequence_rejection(self):
         """Test that empty input list raises ValueError."""
         with self.assertRaises(ValueError) as ctx:
-            predict_rul([])
+            self.predictor.predict_rul([])
         self.assertIn("Invalid sequence length", str(ctx.exception))
 
     def test_upper_lower_bound_capping_limits(self):
         """Test that extreme input feature values remain strictly bounded within [0.0, 125.0]."""
         extreme_high_seq = [{f: 99999.0 for f in self.feature_order} for _ in range(30)]
-        res_high = predict_rul(extreme_high_seq)
+        res_high = self.predictor.predict_rul(extreme_high_seq)
         self.assertTrue(0.0 <= res_high["estimated_rul"] <= 125.0)
         self.assertTrue(0.0 <= res_high["lower_bound"] <= 125.0)
         self.assertTrue(0.0 <= res_high["upper_bound"] <= 125.0)
 
         extreme_low_seq = [{f: -99999.0 for f in self.feature_order} for _ in range(30)]
-        res_low = predict_rul(extreme_low_seq)
+        res_low = self.predictor.predict_rul(extreme_low_seq)
         self.assertTrue(0.0 <= res_low["estimated_rul"] <= 125.0)
         self.assertTrue(0.0 <= res_low["lower_bound"] <= 125.0)
         self.assertTrue(0.0 <= res_low["upper_bound"] <= 125.0)

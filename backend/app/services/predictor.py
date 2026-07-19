@@ -1,7 +1,10 @@
 import os
 import sys
+import logging
 from typing import Dict, Any
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 # Resolve repository root path relative to this file
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -32,7 +35,7 @@ class PredictorService:
                 self.model_loaded = False
         except Exception as e:
             # Safe recovery: set model_loaded to False so API remains up in model-unavailable mode
-            print(f"Warning: RULPredictor failed to initialize. Error: {type(e).__name__}")
+            logger.warning("RULPredictor failed to initialize. Error: %s", type(e).__name__)
             self.model_loaded = False
 
     def predict_rul(self, engine_id: int, cycle: int, sensor_window: list) -> Dict[str, Any]:

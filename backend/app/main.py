@@ -2,9 +2,17 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+import logging
 import math
 from app.api.endpoints import router as api_router
 from app.config import API_TITLE, API_VERSION, ALLOWED_ORIGINS, MAX_CONTENT_LENGTH
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%SZ"
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=API_TITLE,
@@ -19,7 +27,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Accept", "Authorization"],
 )
 
 from fastapi.encoders import jsonable_encoder

@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, status
+import logging
 from app.schemas import PredictRULRequest, PredictRULResponse, HealthResponse, ModelInfoResponse
 from app.services.predictor import PredictorService
 from app.config import API_VERSION, MODEL_NAME, MODEL_VERSION, WINDOW_SIZE, NUM_FEATURES
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -69,7 +72,10 @@ def predict_rul(payload: PredictRULRequest):
         )
         return PredictRULResponse(**prediction)
     except Exception:
-        # Secure exception handling
+        logger.exception(
+            "RUL prediction failed for engine_id=%s cycle=%s",
+            payload.engine_id, payload.cycle
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while executing the RUL model prediction."

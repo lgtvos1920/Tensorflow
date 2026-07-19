@@ -26,11 +26,6 @@ MODEL_DIR = os.path.join(REPO_ROOT, "models")
 WINDOW_LENGTH = 30
 MAX_RUL_CAP = 125.0
 
-# Authoritative empirical residual offsets & coverage
-AUTHORITATIVE_Q05 = -15.01
-AUTHORITATIVE_Q95 = 24.08
-AUTHORITATIVE_COVERAGE_PCT = 89.98
-
 # Official NASA C-MAPSS Sensor Descriptions
 SENSOR_DESCRIPTIONS = {
     "op_setting_1": "Altitude (Operational Setting 1)",
@@ -70,7 +65,7 @@ def train_random_forest_baseline(X_train: np.ndarray, y_train: np.ndarray, rando
 def compute_comprehensive_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     """
     Compute overall MAE/RMSE, segmented RUL performance metrics,
-    near-failure MAE (RUL <= 30), and authoritative empirical quantiles.
+    near-failure MAE (RUL <= 30), and empirical quantiles from residuals.
     """
     overall_mae = float(mean_absolute_error(y_true, y_pred))
     overall_rmse = float(root_mean_squared_error(y_true, y_pred))
@@ -98,17 +93,40 @@ def compute_comprehensive_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dic
         }
     }
     
+    residuals = y_true - y_pred
+    q05 = round(float(np.percentile(residuals, 5)), 2)
+    q95 = round(float(np.percentile(residuals, 95)), 2)
+    coverage = round(float(np.mean((residuals >= q05) & (residuals <= q95)) * 100), 2)
+    
     return {
         "overall_mae": round(overall_mae, 4),
         "overall_rmse": round(overall_rmse, 4),
         "near_failure_mae": segmented["near_failure_le_30"]["mae"],
         "empirical_quantiles": {
-            "lower_quantile_5": AUTHORITATIVE_Q05,
-            "upper_quantile_95": AUTHORITATIVE_Q95
+            "lower_quantile_5": q05,
+            "upper_quantile_95": q95
         },
-        "empirical_interval_coverage_pct": AUTHORITATIVE_COVERAGE_PCT,
+        "empirical_interval_coverage_pct": coverage,
         "segmented_metrics": segmented
     }
+
+def evaluate_on_test_set(model: RandomForestRegressor, test_df: pd.DataFrame, test_rul: pd.Series, useful_features: list) -> dict:
+    """Evaluate model on the true holdout test set (using final cycles of test trajectories)."""
+    # Test set contains trajectories that end before failure. The true RUL for the last cycle is in test_rul.
+    last_cycles = test_df.groupby('unit_nr').last()[useful_features]
+    y_pred = model.predict(last_cycles.values)
+    
+    y_pred_clipped = np.minimum(y_pred, MAX_RUL_CAP)
+    y_true_clipped = np.minimum(test_rul.values, MAX_RUL_CAP)
+    
+    mae = float(mean_absolute_error(y_true_clipped, y_pred_clipped))
+    rmse = float(root_mean_squared_error(y_true_clipped, y_pred_clipped))
+    
+    return {
+        "mae": round(mae, 4),
+        "rmse": round(rmse, 4)
+    }
+
 
 
 def extract_feature_importance(model: RandomForestRegressor, feature_names: list) -> dict:
@@ -155,10 +173,12 @@ def run_pipeline():
     y_val_pred = rf_model.predict(X_val)
     perf_metrics = compute_comprehensive_metrics(y_val, y_val_pred)
     feat_importance = extract_feature_importance(rf_model, useful_features)
+    test_metrics = evaluate_on_test_set(rf_model, test_df, test_rul, useful_features)
     
-    print(f"RandomForest Overall -> MAE: {perf_metrics['overall_mae']}, RMSE: {perf_metrics['overall_rmse']}")
+    print(f"RandomForest Validation -> MAE: {perf_metrics['overall_mae']}, RMSE: {perf_metrics['overall_rmse']}")
+    print(f"RandomForest Test Set   -> MAE: {test_metrics['mae']}, RMSE: {test_metrics['rmse']}")
     print(f"Near-Failure MAE (RUL <= 30): {perf_metrics['near_failure_mae']}")
-    print(f"Authoritative 90% Empirical Coverage: {perf_metrics['empirical_interval_coverage_pct']}%")
+    print(f"Empirical 90% Interval Coverage: {perf_metrics['empirical_interval_coverage_pct']}%")
     
     # 5. Save Production Artifacts
     model_path = os.path.join(MODEL_DIR, "baseline_model.joblib")
@@ -212,6 +232,7 @@ def run_pipeline():
             "Operational conditions assume single sea-level flight regime (FD001 configuration)."
         ],
         "performance_metrics": perf_metrics,
+        "test_set_metrics": test_metrics,
         "artifact_checksums": artifact_checksums,
         "dataset_checksums": dataset_checksums,
         "sensor_metadata": sensor_meta

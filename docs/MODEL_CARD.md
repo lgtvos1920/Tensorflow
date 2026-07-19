@@ -1,9 +1,9 @@
-# Model Card: C-MAPSS FD001 RandomForest RUL Estimator (v1.2.0)
+# Model Card: C-MAPSS FD001 RandomForest RUL Estimator (v1.3.0)
 
 ## Model Overview
 - **Model Name**: `RandomForestRegressor_FD001`
 - **Model Type**: Ensembled Decision Trees (`RandomForestRegressor`)
-- **Version**: `1.2.0`
+- **Version**: `1.3.0`
 - **Hyperparameters**: `n_estimators=120`, `max_depth=14`, `min_samples_split=5`, `min_samples_leaf=2`, `random_state=42`
 - **Training Framework**: `scikit-learn` (v1.6+)
 - **Artifacts**: `models/baseline_model.joblib`, `models/scaler.joblib`, `models/feature_order.json`, `models/feature_importance.json`, `models/metadata.json`
